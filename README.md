@@ -11,4 +11,4 @@ there are a few global constants, such as elasticity of particles, elasticity of
 <br>
 this was written entirely in c++ using the glut implementation of openGL<br>
 <br>
-it is part of my summer of code project<br>
+it is part of my [summer of code](https://github.com/crypticC0der/summerofcode) project<br>
