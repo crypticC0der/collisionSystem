@@ -34,6 +34,11 @@ class Particle{
 			pos[1] += delta*vel[1];
 		}
 
+		void applyForce(float* acc,float delta){
+			vel[0]+=delta*acc[0]/mass;
+			vel[1]+=delta*acc[1]/mass;
+		}
+
 		void applyAcc(float* acc,float delta){
 			vel[0]+=delta*acc[0];	
 			vel[1]+=delta*acc[1];	
@@ -81,13 +86,76 @@ class Particle{
 		}
 };
 
+class Spring{
+	public:
+		float *start;
+		float *end;
+		Particle *attached;
+		float pAttached;
+		float elsticity;
+		float natLen;
+		bool spring; //true=spring false=string;
+
+		void init(Particle p1, Particle p2,float elast,float natl,bool isSpring){
+			start = p2.pos;
+			end=p1.pos;
+			elsticity=elast;
+			natLen=natl;
+			spring=isSpring;
+			attached=new Particle[2];
+			attached[0]=p1;
+			attached[1]=p2;
+			pAttached=2;
+		}
+		void init(float* startPoint, Particle p1,float elast,float natl,bool isSpring){
+			start = startPoint;
+			end=p1.pos;
+			elsticity=elast;
+			natLen=natl;
+			spring=isSpring;
+			attached=new Particle[1];
+			attached[0]=p1;
+			pAttached=1;
+		}
+
+		float* tension(){
+			float *diff = new float[2];
+			diff[0] = start[0]-end[0];
+			diff[1] = start[1]-end[1];
+			float clen= hypot(diff[0],diff[1]);
+			float ext = clen-natLen;
+			if(ext<0 && !spring){
+				ext=0;
+			}
+			//diff becomes the tension vector, this is set to be applied to end
+			//to apply it to start *-1 it
+			diff[0]*=ext*elsticity/(clen*natLen);
+			diff[1]*=ext*elsticity/(clen*natLen);
+			return diff;	
+		}
+
+		void Render(){
+			glColor3f(elsticity/100,1-elsticity/100,0);
+			glBegin(GL_LINES);
+			glVertex2d(start[0],start[1]);
+			glVertex2d(end[0],end[1]);
+			glEnd();
+
+		}
+};
+
 Particle* particles;
+Spring* springs;
 int numParts;
+int numSprings;
 
 
 void draw(){
 	for (int i =0;i<numParts;i++){
 		particles[i].Render();	
+	}
+	for (int i=0;i<numSprings;i++){
+		springs[i].Render();	
 	}
 }
 
@@ -103,18 +171,22 @@ void run(){
 	duration<double> duration = high_resolution_clock::now() - lastTime;
 	double delta = 10*duration.count();
 	//do shit
+	for (int i=0;i<numSprings;i++){
+		float* ten = springs[i].tension();
+		for(int j=0;j<springs[i].pAttached;j++){
+			springs[i].attached[j].applyForce(ten,delta);
+			ten[0]*=-1;
+			ten[1]*=-1;
+		}
+	}
 	for (int i=0;i<numParts;i++){
 		float* acc = new float[2];
-		acc[0]=(i*-1);
-		acc[1]=0;
-		particles[i].applyAcc(acc,delta);
 		particles[i].move(delta);
 		particles[i].bounceOffWalls();
 		free(acc);
 		for(int j=i+1;j<numParts;j++){
 			if(hypot(particles[i].pos[0]-particles[j].pos[0],particles[i].pos[1]-particles[j].pos[1])<=(0.1)){
 				particles[i].collisionWithParticle(particles[j]);
-				cout<<"collided"<<endl;
 			}
 		}
 	}
@@ -129,8 +201,11 @@ void run(){
 int main(int argc, char** argv) {
 	numParts=2;
 	particles = new Particle[2];
-	particles[0].init(50,0.05,-0.5,0,0,0);
+	particles[0].init(1,0.05,-0.5,0,0,0);
 	particles[1].init(1,0.05,0.5,0,0,0);
+	numSprings=1;
+	springs=new Spring[1];
+	springs[0].init(particles[0],particles[1],1,2,true);
 	srand (time(NULL));
 	glutInit(&argc, argv);		// Initialize GLUT
     glutInitWindowSize(800,800);   // Set the window's initial width & height
