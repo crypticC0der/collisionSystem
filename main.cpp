@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <chrono>
 using namespace std;
+using namespace std::chrono;
 #define VERTS 15
 #define ELAST_X 0.25
 #define ELAST_Y 0.5
@@ -165,7 +166,7 @@ void disInit(){
 	draw();
 	glFlush();
 }
-using namespace std::chrono;
+
 high_resolution_clock::time_point lastTime;
 void run(){
 	duration<double> duration = high_resolution_clock::now() - lastTime;
