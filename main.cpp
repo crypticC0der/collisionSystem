@@ -12,6 +12,38 @@ using namespace std::chrono;
 #define ELAST_Y 0.5
 #define ELAST_COL 0.5
 
+template <class T>
+class Node{
+	public:
+		Node<T>* next;
+		Node<T>* previous;
+		T value;
+		void init(T val,Node<T>* prev){
+			value=val;
+			previous=prev;
+		}
+};
+
+template <class T>
+class LinkedList{
+	public:
+		Node<T>* start;
+		Node<T>* end;
+		void Add(T val){
+			(*end).next = new Node<T>[1];
+			(*(*end).next).init(val,end);
+			end=(*end).next;
+
+		}
+		T Del(){
+			end = &(*end).prev;
+			T ret = *(*end).value;
+			free((*end).next);
+			return ret;	
+		}
+};
+
+
 class Particle{
 	public:
 		float *pos;
@@ -150,7 +182,23 @@ Spring* springs;
 int numParts;
 int numSprings;
 
+class Water{
+	public:
+		float height;
+		float x;
+		float y;
+		void Render(){
+			glColor3f(0,0,height/0.02);
+			glBegin(GL_QUADS);
+			glVertex2d(x+0.01,y+height/2);
+			glVertex2d(x-0.01,y+height/2);
+			glVertex2d(x-0.01,y-height/2);
+			glVertex2d(x+0.01,y-height/2);
+			glEnd();
+		}
+};
 
+LinkedList<Water> waters;
 void draw(){
 	for (int i =0;i<numParts;i++){
 		particles[i].Render();	
@@ -158,6 +206,12 @@ void draw(){
 	for (int i=0;i<numSprings;i++){
 		springs[i].Render();	
 	}
+	Node<Water>* w=waters.start;
+	while(w!=waters.end){
+		(*w).value.Render();
+		w=(*w).next;
+	}
+	
 }
 
 void disInit(){
@@ -165,6 +219,80 @@ void disInit(){
 	glClear(GL_COLOR_BUFFER_BIT);         // Clear the color buffer
 	draw();
 	glFlush();
+}
+
+void WaterMove(Water w){
+	bool left;
+	bool right; 
+	bool down;
+	bool neccicary = w.height >0.002;
+	
+	//walls
+	left = w.x>-0.98;
+	right = w.x<0.98;
+	down =w.y>-0.98;
+	
+	//particles
+	float dx;
+	for(int i=0;i<numParts;i++){
+		if(hypot(w.x-particles[i].pos[0],w.y-particles[i].pos[1])>particles[i].radius){
+			neccicary=true;
+			dx = particles[i].pos[0]-w.x;
+			down &= particles[i].pos[1]-w.y>0;
+			right&=dx<0;
+			left&=dx>0;
+
+		}
+	}
+	Node<Water>* nodeptr = waters.start;
+	Water pointed;
+	while(waters.end!=nodeptr){
+		pointed=(*nodeptr).value;
+		if (pointed.y-w.y>-0.4){
+			if(down&&w.height>0.002){
+				pointed.height+=w.height/2;
+				w.height/=2;
+			}
+		}
+		if (pointed.x-w.x>-0.4){
+			if(left&&w.height>0.002){
+				pointed.height+=w.height/2;
+				w.height/=2;
+			}
+		}
+		if (pointed.x-w.x<0.4){
+			if(right&&w.height>0.002){
+				pointed.height+=w.height/2;
+				w.height/=2;
+			}
+			right=false;
+		}
+		nodeptr=(*nodeptr).next;
+	}
+	if(left){
+		Water nw;
+		waters.Add(nw);
+		nw.x=w.x-0.02;
+		nw.y=w.y;
+		nw.height=w.height/2;
+		w.height/=2;
+	}
+	if(down){
+		Water nw;
+		waters.Add(nw);
+		nw.x=w.x;
+		nw.y=w.y-0.02;
+		nw.height=w.height/2;
+		w.height/=2;
+	}
+	if(right){
+		Water nw;
+		waters.Add(nw);
+		nw.x=w.x+0.02;
+		nw.y=w.y;
+		nw.height=w.height/2;
+		w.height/=2;
+	}
 }
 
 high_resolution_clock::time_point lastTime;
@@ -184,12 +312,18 @@ void run(){
 		float* acc = new float[2];
 		particles[i].move(delta);
 		particles[i].bounceOffWalls();
+
 		free(acc);
 		for(int j=i+1;j<numParts;j++){
 			if(hypot(particles[i].pos[0]-particles[j].pos[0],particles[i].pos[1]-particles[j].pos[1])<=(0.1)){
 				particles[i].collisionWithParticle(particles[j]);
 			}
 		}
+	}
+	Node<Water>* nodeptr = waters.start;
+	while(waters.end!=nodeptr){
+		WaterMove((*nodeptr).value);
+		nodeptr=(*nodeptr).next;
 	}
 
 	glClear(GL_COLOR_BUFFER_BIT);
