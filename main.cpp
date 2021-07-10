@@ -12,6 +12,7 @@ using namespace std::chrono;
 #define ELAST_Y 0.5
 #define ELAST_COL 0.5
 
+
 template <class T>
 class Node{
 	public:
