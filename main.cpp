@@ -299,7 +299,8 @@ void WaterMove(Water w){
 high_resolution_clock::time_point lastTime;
 void run(){
 	duration<double> duration = high_resolution_clock::now() - lastTime;
-	double delta = 10*duration.count();
+	double delta = duration.count();
+	lastTime = high_resolution_clock::now();
 	//do shit
 	for (int i=0;i<numSprings;i++){
 		float* ten = springs[i].tension();
@@ -330,7 +331,6 @@ void run(){
 	glClear(GL_COLOR_BUFFER_BIT);
 	draw();
 	glFlush();
-	lastTime = high_resolution_clock::now();
 }
 
 
