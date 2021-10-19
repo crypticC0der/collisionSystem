@@ -11,39 +11,7 @@ using namespace std::chrono;
 #define ELAST_X 0.25
 #define ELAST_Y 0.5
 #define ELAST_COL 0.5
-
-
-template <class T>
-class Node{
-	public:
-		Node<T>* next;
-		Node<T>* previous;
-		T value;
-		void init(T val,Node<T>* prev){
-			value=val;
-			previous=prev;
-		}
-};
-
-template <class T>
-class LinkedList{
-	public:
-		Node<T>* start;
-		Node<T>* end;
-		void Add(T val){
-			(*end).next = new Node<T>[1];
-			(*(*end).next).init(val,end);
-			end=(*end).next;
-
-		}
-		T Del(){
-			end = &(*end).prev;
-			T ret = *(*end).value;
-			free((*end).next);
-			return ret;	
-		}
-};
-
+float delta;
 
 class Particle{
 	public:
@@ -63,17 +31,21 @@ class Particle{
 			vel[1] = vy;
 		}
 
-		void move(float delta){
+		void move(){
 			pos[0] += delta*vel[0];
 			pos[1] += delta*vel[1];
 		}
 
-		void applyForce(float* acc,float delta){
+		void applyForce(float* acc){
 			vel[0]+=delta*acc[0]/mass;
 			vel[1]+=delta*acc[1]/mass;
 		}
 
-		void applyAcc(float* acc,float delta){
+		void applyGrav(){
+			vel[1]-=delta*9.8f;
+		}
+
+		void applyAcc(float* acc){
 			vel[0]+=delta*acc[0];	
 			vel[1]+=delta*acc[1];	
 		}
@@ -120,12 +92,62 @@ class Particle{
 		}
 };
 
+class Rod{
+	public:
+		float* points[2];  //0=start 1=end
+		Particle* attached;
+		int pAttached;
+		bool movable[2];
+		float length;
+
+		void init(Particle p1, Particle p2,float len){
+			points[0]= p2.pos;
+			points[1]=p1.pos;
+			length=len;
+			attached=new Particle[2];
+			attached[0]=p1;
+			attached[1]=p2;
+			pAttached=2;
+		}
+		void init(float* startPoint, Particle p1,float len){
+			points[0]= startPoint;
+			points[1]=p1.pos;
+			length=len;
+			attached=new Particle[1];
+			attached[0]=p1;
+			pAttached=1;
+		}
+
+		void adjustParticles(){
+			float* d=new float[2];
+			d[0]=points[0][0]-points[1][0];
+			d[1]=points[0][1]-points[1][1];
+			float hyp = hypot(d[0],d[1]);
+			cout << hyp<<endl;
+			d[0]/=hyp;
+			d[1]/=hyp;
+			for (int i=0;i<pAttached;i++){
+				float magnitude = attached[i].vel[0]*d[0] + attached[i].vel[1]*d[1];
+				attached[i].vel[0]-=d[0]*magnitude;
+				attached[i].vel[1]-=d[1]*magnitude;
+			}
+		}
+		void Render(){
+			glColor3f(0,1,0);
+			glBegin(GL_LINES);
+			glVertex2d(points[0][0],points[0][1]);
+			glVertex2d(points[1][0],points[1][1]);
+			glEnd();
+
+		}
+};
+
 class Spring{
 	public:
 		float *start;
 		float *end;
 		Particle *attached;
-		float pAttached;
+		int pAttached;
 		float elsticity;
 		float natLen;
 		bool spring; //true=spring false=string;
@@ -178,41 +200,24 @@ class Spring{
 		}
 };
 
+Rod* rods;
 Particle* particles;
 Spring* springs;
+int numRods;
 int numParts;
 int numSprings;
 
-class Water{
-	public:
-		float height;
-		float x;
-		float y;
-		void Render(){
-			glColor3f(0,0,height/0.02);
-			glBegin(GL_QUADS);
-			glVertex2d(x+0.01,y+height/2);
-			glVertex2d(x-0.01,y+height/2);
-			glVertex2d(x-0.01,y-height/2);
-			glVertex2d(x+0.01,y-height/2);
-			glEnd();
-		}
-};
 
-LinkedList<Water> waters;
 void draw(){
 	for (int i =0;i<numParts;i++){
 		particles[i].Render();	
 	}
+	for (int i=0;i<numRods;i++){
+		rods[i].Render();	
+	}
 	for (int i=0;i<numSprings;i++){
 		springs[i].Render();	
 	}
-	Node<Water>* w=waters.start;
-	while(w!=waters.end){
-		(*w).value.Render();
-		w=(*w).next;
-	}
-	
 }
 
 void disInit(){
@@ -222,110 +227,35 @@ void disInit(){
 	glFlush();
 }
 
-void WaterMove(Water w){
-	bool left;
-	bool right; 
-	bool down;
-	bool neccicary = w.height >0.002;
-	
-	//walls
-	left = w.x>-0.98;
-	right = w.x<0.98;
-	down =w.y>-0.98;
-	
-	//particles
-	float dx;
-	for(int i=0;i<numParts;i++){
-		if(hypot(w.x-particles[i].pos[0],w.y-particles[i].pos[1])>particles[i].radius){
-			neccicary=true;
-			dx = particles[i].pos[0]-w.x;
-			down &= particles[i].pos[1]-w.y>0;
-			right&=dx<0;
-			left&=dx>0;
-
-		}
-	}
-	Node<Water>* nodeptr = waters.start;
-	Water pointed;
-	while(waters.end!=nodeptr){
-		pointed=(*nodeptr).value;
-		if (pointed.y-w.y>-0.4){
-			if(down&&w.height>0.002){
-				pointed.height+=w.height/2;
-				w.height/=2;
-			}
-		}
-		if (pointed.x-w.x>-0.4){
-			if(left&&w.height>0.002){
-				pointed.height+=w.height/2;
-				w.height/=2;
-			}
-		}
-		if (pointed.x-w.x<0.4){
-			if(right&&w.height>0.002){
-				pointed.height+=w.height/2;
-				w.height/=2;
-			}
-			right=false;
-		}
-		nodeptr=(*nodeptr).next;
-	}
-	if(left){
-		Water nw;
-		waters.Add(nw);
-		nw.x=w.x-0.02;
-		nw.y=w.y;
-		nw.height=w.height/2;
-		w.height/=2;
-	}
-	if(down){
-		Water nw;
-		waters.Add(nw);
-		nw.x=w.x;
-		nw.y=w.y-0.02;
-		nw.height=w.height/2;
-		w.height/=2;
-	}
-	if(right){
-		Water nw;
-		waters.Add(nw);
-		nw.x=w.x+0.02;
-		nw.y=w.y;
-		nw.height=w.height/2;
-		w.height/=2;
-	}
-}
-
 high_resolution_clock::time_point lastTime;
 void run(){
 	duration<double> duration = high_resolution_clock::now() - lastTime;
-	double delta = duration.count();
+	delta = duration.count();
 	lastTime = high_resolution_clock::now();
 	//do shit
 	for (int i=0;i<numSprings;i++){
 		float* ten = springs[i].tension();
 		for(int j=0;j<springs[i].pAttached;j++){
-			springs[i].attached[j].applyForce(ten,delta);
+			springs[i].attached[j].applyForce(ten);
 			ten[0]*=-1;
 			ten[1]*=-1;
 		}
 	}
 	for (int i=0;i<numParts;i++){
-		float* acc = new float[2];
-		particles[i].move(delta);
+		particles[i].applyGrav();
+	}
+	for (int i=0;i<numRods;i++){
+		rods[i].adjustParticles();
+	}
+	for (int i =0;i<numParts;i++){
+		particles[i].move();
 		particles[i].bounceOffWalls();
 
-		free(acc);
 		for(int j=i+1;j<numParts;j++){
 			if(hypot(particles[i].pos[0]-particles[j].pos[0],particles[i].pos[1]-particles[j].pos[1])<=(0.1)){
 				particles[i].collisionWithParticle(particles[j]);
 			}
 		}
-	}
-	Node<Water>* nodeptr = waters.start;
-	while(waters.end!=nodeptr){
-		WaterMove((*nodeptr).value);
-		nodeptr=(*nodeptr).next;
 	}
 
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -335,13 +265,22 @@ void run(){
 
 
 int main(int argc, char** argv) {
-	numParts=2;
-	particles = new Particle[2];
-	particles[0].init(1,0.05,-0.5,0,0,0);
-	particles[1].init(1,0.05,0.5,0,0,0);
-	numSprings=1;
-	springs=new Spring[1];
-	springs[0].init(particles[0],particles[1],1,2,true);
+	numParts=4;
+	particles = new Particle[4];
+	particles[0].init(1,0.05,0.1,0,0,0);
+	particles[1].init(1,0.05,-0.1,0,0,0);
+	particles[2].init(1,0.05,-0.1,0.2,0,0);
+	particles[3].init(1,0.05,0.1,0.2,0,0);
+	numSprings=0;
+	rods = new Rod[6];
+	numRods=6;
+	springs=new Spring[0];
+	rods[0].init(particles[0],particles[1],0.6);
+	rods[1].init(particles[0],particles[2],0.6);
+	rods[2].init(particles[0],particles[3],0.6);
+	rods[3].init(particles[1],particles[2],0.6);
+	rods[4].init(particles[1],particles[3],0.6);
+	rods[5].init(particles[2],particles[3],0.6);
 	srand (time(NULL));
 	glutInit(&argc, argv);		// Initialize GLUT
     glutInitWindowSize(800,800);   // Set the window's initial width & height
